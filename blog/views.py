@@ -65,8 +65,8 @@ def post_detail(request, slug):
         .annotate(
             likes_count=Count("likes", distinct=True),
             comments_count=Count("comments", distinct=True),
-        )
-        .get(slug=slug)
+        ),
+        slug=slug,
     )
     serialized_comments = []
     for comment in post.comments.all():
@@ -111,29 +111,22 @@ def post_detail(request, slug):
 
 
 def tag_filter(request, tag_title):
-    tag = get_object_or_404(title=tag_title)
+    tag = get_object_or_404(Tag, title=tag_title)
 
     most_popular_posts = (
-        Post.objects.popular().fully_optimized()[
+        Post.objects.popular()
+        .fully_optimized()[
             :5].fetch_with_comments_count()
     )
 
     most_popular_tags = Tag.objects.popular()[:5]
 
     related_posts = (
-        Post.objects.filter(tags=tag).fully_optimized()[
-            :20].fetch_with_comments_count()
+        Post.objects.filter(tags=tag)
+            .fully_optimized()
+            .annotate(likes_count=Count("likes", distinct=True))
+            [:20].fetch_with_comments_count()
     )
-    related_posts_ids = [post.id for post in related_posts]
-
-    related_posts_with_likes = Post.objects.filter(id__in=related_posts_ids).annotate(
-        likes_count=Count("likes", distinct=True)
-    )
-    likes_for_id = {
-        post.id: post.likes_count for post in related_posts_with_likes}
-
-    for post in related_posts:
-        post.likes_count = likes_for_id.get(post.id, 0)
 
     context = {
         "tag": tag.title,
